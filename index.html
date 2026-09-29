@@ -88,7 +88,7 @@ input.w{width:100%}
 </style></head><body>
 <svg id="sky" viewBox="0 0 1000 90" preserveAspectRatio="xMidYMax slice" aria-hidden="true"></svg>
 <div class="top"><h1>BLACKOUT CITY</h1><div id="hd"></div></div>
-<div id="gate"></div><div id="fx"></div><div class="wrap" id="appWrap"><aside><div class="card" id="me"></div><div class="card" id="bars"></div><nav id="nav"></nav></aside>
+<div id="gate"></div><div id="fx"></div><div class="wrap" id="appWrap" style="display:none"><aside><div class="card" id="me"></div><div class="card" id="bars"></div><nav id="nav"></nav></aside>
 <main><div id="warn"></div><div id="main"></div><div class="card"><h2>Event log</h2><div id="log"></div></div></main></div>
 <script>
 window.__loadSupabase=function(){
@@ -146,9 +146,8 @@ async function loadAccount(user){
     G='ok';DB_STATUS='Cloud connected';
     render();
     await save();
-    await loadP()
+    await loadP();
   }catch(e){
-    // Oturum yüklenemezse kullanıcıyı kilitli bırakma, çıkış yaptırıp giriş ekranına al
     console.error('Cloud load failed',e);
     DB_STATUS='Cloud load error';
     if(supabase) await supabase.auth.signOut();
@@ -156,7 +155,7 @@ async function loadAccount(user){
     G='signin';
     render();
     const el=$('loginError');
-    if(el)el.textContent='Hesap verileri yüklenemedi. SQL ayarlarını Supabase SQL Editor üzerinden çalıştırıp tekrar dene.';
+    if(el)el.textContent='Hesap verileri yüklenemedi. Oturum sıfırlandı, tekrar giriş yapın.';
   }
 }
 
@@ -170,10 +169,10 @@ async function login(){
     const virtualEmail = u + '@blackoutcity.com';
     const {data,error}=await supabase.auth.signInWithPassword({email:virtualEmail,password:p});
     if(error)throw error;
-    if(data.user)await loadAccount(data.user)
+    if(data.user)await loadAccount(data.user);
   }catch(err){
     if(e)e.textContent='Giriş başarısız. Kullanıcı adı veya şifre hatalı.';
-    console.error('Login failed',err)
+    console.error('Login failed',err);
   }
 }
 
@@ -254,14 +253,18 @@ function statData(key,v,m){const pct=Math.max(0,Math.min(100,v/m*100));const ful
 function statCard(key,n,v,m,c){const d=statData(key,v,m);return `<div class="stat-mini"><div class="stat-head"><span class="stat-name">${n}</span><span class="stat-value">${Math.floor(v)} / ${Math.floor(m)}</span></div><div class="stat-track"><div class="stat-fill" style="width:${d.pct}%;background:${c};color:${c}"></div></div><div class="stat-meta"><span>${Math.floor(d.pct)}%</span><span class="stat-next">${d.full?'FULL':'Full in '+fmtTime(d.remaining)}</span></div></div>`}
 function bar(n,v,m,c){return statCard(n.toLowerCase(),n,v,m,c)}
 function hudCard(label,value,sub,glow){return `<div class="hud-card" style="--glow:${glow}"><div class="hud-label">${label}</div><div class="hud-number">${value}</div><div class="hud-sub">${sub}</div></div>`}
+
 function render(){
   const f=document.activeElement&&document.activeElement.tagName==='INPUT';
   const gt=$('gate'),wr=$('appWrap');
+  if(!gt || !wr) return;
+
   if(G!=='ok'){
     wr.style.display='none';
     if(!f)gt.innerHTML=gateH();
     return;
   }
+
   wr.style.display='grid';
   gt.innerHTML='';
   $('hd').innerHTML=`<span id="cloudStatus" class="mu">${esc(DB_STATUS)}</span> <span style="font-weight:900;font-size:18px;margin-left:12px">${fmt(S.money)}</span> <span class="mu">CASH</span>`;
@@ -277,11 +280,15 @@ function render(){
   }
   $('log').innerHTML=S.log.map(l=>`<p class="log-line ${l.c}">${esc(l.t)}</p>`).join('')||'<p class="mu">Nothing yet.</p>';
 }
+
 async function loadP(){if(!supabase||!CLOUD_READY){C=[];DB_STATUS='Cloud unavailable';render();return}try{const field=SK==='money'?'net_worth':SK==='win'?'fight_wins':'level';const {data,error}=await supabase.from('leaderboard').select('username,display_name,level,net_worth,fight_wins,color,hat,motto').order(field,{ascending:false}).limit(100);if(error)throw error;C=(data||[]).map(p=>({name:p.display_name||p.username,lvl:p.level||1,money:0,bank:0,net_worth:Number(p.net_worth)||0,col:p.color||COL[0],hat:p.hat||0,motto:p.motto||'',c:{win:p.fight_wins||0},reg:1,username:p.username}));render()}catch(e){console.error('Leaderboard load failed',e);DB_STATUS='Leaderboard unavailable'}}
-setInterval(()=>{S.energy=Math.min(maxL(),S.energy+2);S.nerve=Math.min(20+S.lvl,S.nerve+1);S.happy=Math.min(100,S.happy+2);if(!busy())S.life=Math.min(maxL(),S.life+3);save();render()},10000);
-setInterval(()=>{const i=Math.floor(S.bank*.005);if(i>0)S.bank+=i},30000);setInterval(()=>{if(G==='ok')render()},1000);
-render();
-(async function initCloud(){
+
+setInterval(()=>{if(G==='ok'){S.energy=Math.min(maxL(),S.energy+2);S.nerve=Math.min(20+S.lvl,S.nerve+1);S.happy=Math.min(100,S.happy+2);if(!busy())S.life=Math.min(maxL(),S.life+3);save();render()}},10000);
+setInterval(()=>{if(G==='ok'){const i=Math.floor(S.bank*.005);if(i>0)S.bank+=i}},30000);
+setInterval(()=>{if(G==='ok')render()},1000);
+
+document.addEventListener('DOMContentLoaded', async ()=>{
+  render();
   try{
     CLOUD_READY=await window.__loadSupabase();
     if(CLOUD_READY&&window.supabase){
@@ -306,5 +313,5 @@ render();
     render();
     console.error('Cloud init failed',e);
   }
-})();
+});
 </script></body></html>
