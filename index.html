@@ -69,7 +69,7 @@ nav button.on{background:linear-gradient(90deg,rgba(245,200,75,.16),rgba(245,200
 button.a{border-radius:10px;padding:8px 15px;background:linear-gradient(135deg,#f8d45d,#e6ad2e);box-shadow:0 8px 22px rgba(245,200,75,.12);font:800 15px Inter,system-ui}
 button.s{background:rgba(255,255,255,.07);color:#dbe3ec;box-shadow:none;border:1px solid rgba(255,255,255,.08)}
 button.a:hover{filter:brightness(1.08);transform:translateY(-2px);box-shadow:0 11px 28px rgba(245,200,75,.18)}
-input,select{width:140px;border-radius:9px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);padding:9px 10px}
+input,select{width:140px;border-radius:99px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);padding:9px 10px}
 input.w{width:100%}
 #me{padding:14px;background:linear-gradient(145deg,rgba(245,200,75,.10),rgba(20,28,40,.9))}
 #bars{padding:14px}
@@ -88,7 +88,7 @@ input.w{width:100%}
 </style></head><body>
 <svg id="sky" viewBox="0 0 1000 90" preserveAspectRatio="xMidYMax slice" aria-hidden="true"></svg>
 <div class="top"><h1>BLACKOUT CITY</h1><div id="hd"></div></div>
-<div id="gate"></div><div id="fx"></div><div class="wrap"><aside><div class="card" id="me"></div><div class="card" id="bars"></div><nav id="nav"></nav></aside>
+<div id="gate"></div><div id="fx"></div><div class="wrap" id="appWrap"><aside><div class="card" id="me"></div><div class="card" id="bars"></div><nav id="nav"></nav></aside>
 <main><div id="warn"></div><div id="main"></div><div class="card"><h2>Event log</h2><div id="log"></div></div></main></div>
 <script>
 window.__loadSupabase=function(){
@@ -148,12 +148,15 @@ async function loadAccount(user){
     await save();
     await loadP()
   }catch(e){
-    DB_STATUS='Database setup required';
+    // Oturum yüklenemezse kullanıcıyı kilitli bırakma, çıkış yaptırıp giriş ekranına al
+    console.error('Cloud load failed',e);
+    DB_STATUS='Cloud load error';
+    if(supabase) await supabase.auth.signOut();
+    uid=null;
     G='signin';
     render();
     const el=$('loginError');
-    if(el)el.textContent='Database yüklenemedi. SQL dosyasını Supabase SQL Editor’da çalıştırıp tekrar dene.';
-    console.error('Cloud load failed',e)
+    if(el)el.textContent='Hesap verileri yüklenemedi. SQL ayarlarını Supabase SQL Editor üzerinden çalıştırıp tekrar dene.';
   }
 }
 
@@ -164,8 +167,7 @@ async function login(){
   if(e)e.textContent='Giriş yapılıyor…';
   
   try{
-    // Sanal e-posta adresi mantığı
-    const virtualEmail = u + '@blackoutcity.local';
+    const virtualEmail = u + '@blackoutcity.com';
     const {data,error}=await supabase.auth.signInWithPassword({email:virtualEmail,password:p});
     if(error)throw error;
     if(data.user)await loadAccount(data.user)
@@ -245,23 +247,64 @@ bank(){return `<div class="card"><h2>Bank</h2><p class="mu">0.5% interest every 
 profile(){return `<div class="card"><h2>Your profile</h2><div class="row">${av(S.col,S.hat,84,S.pic)}<div class="g"><b>${esc(S.name)}</b><br><span class="mu">${esc(S.motto)}</span></div></div><p>Display username</p><input class="w" id="newUsername" maxlength="16" value="${esc(S.name)}" placeholder="New username"> ${B('rename',null,0,'Save username')}<p class="mu">Login ID: <b>${esc(loginName||'')}</b></p><p>Profile photo<br><input type="file" id="pf" accept="image/*" onchange="upl(this)"> ${S.pic?B("nopic",null,0,"Remove photo"):""}</p><p>Motto<br><input class="w" id="pm" value="${esc(S.motto)}" maxlength="80"></p><p>Color<br>${COL.map(c=>`<span class="sw ${S.col===c?'on':''}" style="background:${c}" role="button" tabindex="0" onclick='act("col","${c}")'></span>`).join('')}</p><p>Headwear<br>${['None','Cap','Fedora','Hood'].map((n,i)=>`<button class="a ${S.hat===i?'':'s'}" onclick='act("hat",${i})'>${n}</button> `).join('')}</p>${B('prof',null,0,'Save profile')} <button class="a s" onclick="logout()">Logout</button><p class="mu">İlerlemen Supabase cloud database’e otomatik kaydedilir.</p></div>`},
 admin(){return adminPanel()},
 people(){const v=p=>SK==='lvl'?(+p.lvl||1)*1e5+(+p.exp||0):SK==='money'?(+p.net_worth||0):((p.c&&p.c.win)||0);const fm=p=>SK==='lvl'?'Lv '+(+p.lvl||1):SK==='money'?fmt(v(p)):v(p)+' wins';const l=C.filter(p=>p.reg).sort((a,b)=>v(b)-v(a)).slice(0,25);
-return `<div class="card"><h2>Leaderboard</h2><p>`+[['lvl','Level'],['money','Net worth'],['win','Fight wins']].map(([k,n])=>`<button class="a ${SK===k?'':'s'}" onclick='SK="${k}";render()'>${n}</button> `).join('')+`</p>`+(l.map((p,i)=>`<div class="row ${p.name===S.name?'me':''}"><b style="width:28px;font:700 22px 'Barlow Condensed';color:${['#e8b93c','#c9ced3','#c98a55'][i]||'var(--mu)'}">${i+1}</b><div class="tile" style="border:0">${av(p.col||COL[0],p.hat,44,p.pic)}</div><div class="g">${esc(p.name)}<br><span class="mu">${esc(p.motto||'')}</span></div><b>${fm(p)}</b></div>`).join('')||'<p class="mu">No players yet.</p>')+'</div>'}};
+return `<div class="card"><h2>Leaderboard</h2><p>`+[['lvl','Level'],['money','Net worth'],['win','Fight wins']].map(([k,n])=>`<button class="a ${SK===k?'':'s'}" onclick='SK="${k}";render()'>${n}</button> `).join('')+` privileges</p>`+(l.map((p,i)=>`<div class="row ${p.name===S.name?'me':''}"><b style="width:28px;font:700 22px 'Barlow Condensed';color:${['#e8b93c','#c9ced3','#c98a55'][i]||'var(--mu)'}">${i+1}</b><div class="tile" style="border:0">${av(p.col||COL[0],p.hat,44,p.pic)}</div><div class="g">${esc(p.name)}<br><span class="mu">${esc(p.motto||'')}</span></div><b>${fm(p)}</b></div>`).join('')||'<p class="mu">No players yet.</p>')+'</div>'}};
 function fmtTime(sec){sec=Math.max(0,Math.ceil(sec));if(sec<60)return sec+'s';const m=Math.floor(sec/60),s=sec%60;return m+'m '+String(s).padStart(2,'0')+'s'}
 const REGEN={energy:5,nerve:10,happy:5,life:10};
 function statData(key,v,m){const pct=Math.max(0,Math.min(100,v/m*100));const full=v>=m;const rate=REGEN[key]||0;return {pct,full,remaining:full||!rate?0:Math.ceil((m-v)*rate)}}
 function statCard(key,n,v,m,c){const d=statData(key,v,m);return `<div class="stat-mini"><div class="stat-head"><span class="stat-name">${n}</span><span class="stat-value">${Math.floor(v)} / ${Math.floor(m)}</span></div><div class="stat-track"><div class="stat-fill" style="width:${d.pct}%;background:${c};color:${c}"></div></div><div class="stat-meta"><span>${Math.floor(d.pct)}%</span><span class="stat-next">${d.full?'FULL':'Full in '+fmtTime(d.remaining)}</span></div></div>`}
 function bar(n,v,m,c){return statCard(n.toLowerCase(),n,v,m,c)}
 function hudCard(label,value,sub,glow){return `<div class="hud-card" style="--glow:${glow}"><div class="hud-label">${label}</div><div class="hud-number">${value}</div><div class="hud-sub">${sub}</div></div>`}
-function render(){const f=document.activeElement&&document.activeElement.tagName==='INPUT';const gt=$('gate'),wr=document.querySelector('.wrap');if(G!=='ok'){wr.style.display='none';if(!f)gt.innerHTML=gateH();return}wr.style.display='';gt.innerHTML='';$('hd').innerHTML=`<span id="cloudStatus" class="mu">${esc(DB_STATUS)}</span> ${G==='ok'?`<span style="font-weight:900;font-size:18px;margin-left:12px">${fmt(S.money)}</span> <span class="mu">CASH</span>`:''}`;
- $('me').innerHTML=`<div class="row" style="border:0">${av(S.col,S.hat,52,S.pic)}<div class="g"><b>${esc(S.name)}</b><br><span class="mu">Level ${S.lvl}</span></div></div>`;
- $('bars').innerHTML='<div class="section-title"><div><div class="eyebrow">LIVE STATUS</div><h3>Resources</h3></div></div>'+statCard('energy','Energy',S.energy,maxL(),'var(--gd)')+statCard('nerve','Nerve',S.nerve,20+S.lvl,'var(--rd)')+statCard('happy','Happy',S.happy,100,'var(--ac)')+statCard('life','Life',S.life,maxL(),'var(--bl)')+statCard('xp','XP',S.exp,S.lvl*100,'var(--pu)');
- $('nav').innerHTML=TB.map(([k,n,i])=>`<button class="${S.tab===k?'on':''}" onclick='S.tab="${k}";$("main").className="";render();void $("main").offsetWidth;$("main").className="in"'>${ic(i)}${n}</button>`).join('')+(isAdmin?`<button class="${S.tab==='admin'?'on':''}" onclick='S.tab="admin";render()'>${ic('people')}Admin</button>`:'');
- $('warn').innerHTML=busy()?`<div class="warn">You are in the hospital. Discharged in ${Math.ceil((S.hosp-Date.now())/1000)}s.</div>`:'';
- if(!f){if(S.tab==='admin'&&!isAdmin)S.tab='home';const view=V[S.tab]||V.home;const hud='<div class="hud-grid">'+hudCard('Cash',fmt(S.money),'Available now','rgba(245,200,75,.14)')+hudCard('Bank',fmt(S.bank),'Stored funds','rgba(88,166,255,.13)')+hudCard('Level','Lv '+S.lvl,(S.lvl*100-S.exp)+' XP to next','rgba(169,139,255,.14)')+hudCard('Power',atk()+' / '+dfn(),'Attack / Defense','rgba(69,211,154,.12)')+'</div>';$('main').innerHTML=hud+`<div class="card hero">${scene(S.tab==='admin'?'people':S.tab)}</div>`+view();}
- $('log').innerHTML=S.log.map(l=>`<p class="log-line ${l.c}">${esc(l.t)}</p>`).join('')||'<p class="mu">Nothing yet.</p>'}
+function render(){
+  const f=document.activeElement&&document.activeElement.tagName==='INPUT';
+  const gt=$('gate'),wr=$('appWrap');
+  if(G!=='ok'){
+    wr.style.display='none';
+    if(!f)gt.innerHTML=gateH();
+    return;
+  }
+  wr.style.display='grid';
+  gt.innerHTML='';
+  $('hd').innerHTML=`<span id="cloudStatus" class="mu">${esc(DB_STATUS)}</span> <span style="font-weight:900;font-size:18px;margin-left:12px">${fmt(S.money)}</span> <span class="mu">CASH</span>`;
+  $('me').innerHTML=`<div class="row" style="border:0">${av(S.col,S.hat,52,S.pic)}<div class="g"><b>${esc(S.name)}</b><br><span class="mu">Level ${S.lvl}</span></div></div>`;
+  $('bars').innerHTML='<div class="section-title"><div><div class="eyebrow">LIVE STATUS</div><h3>Resources</h3></div></div>'+statCard('energy','Energy',S.energy,maxL(),'var(--gd)')+statCard('nerve','Nerve',S.nerve,20+S.lvl,'var(--rd)')+statCard('happy','Happy',S.happy,100,'var(--ac)')+statCard('life','Life',S.life,maxL(),'var(--bl)')+statCard('xp','XP',S.exp,S.lvl*100,'var(--pu)');
+  $('nav').innerHTML=TB.map(([k,n,i])=>`<button class="${S.tab===k?'on':''}" onclick='S.tab="${k}";$("main").className="";render();void $("main").offsetWidth;$("main").className="in"'>${ic(i)}${n}</button>`).join('')+(isAdmin?`<button class="${S.tab==='admin'?'on':''}" onclick='S.tab="admin";render()'>${ic('people')}Admin</button>`:'');
+  $('warn').innerHTML=busy()?`<div class="warn">You are in the hospital. Discharged in ${Math.ceil((S.hosp-Date.now())/1000)}s.</div>`:'';
+  if(!f){
+    if(S.tab==='admin'&&!isAdmin)S.tab='home';
+    const view=V[S.tab]||V.home;
+    const hud='<div class="hud-grid">'+hudCard('Cash',fmt(S.money),'Available now','rgba(245,200,75,.14)')+hudCard('Bank',fmt(S.bank),'Stored funds','rgba(88,166,255,.13)')+hudCard('Level','Lv '+S.lvl,(S.lvl*100-S.exp)+' XP to next','rgba(169,139,255,.14)')+hudCard('Power',atk()+' / '+dfn(),'Attack / Defense','rgba(69,211,154,.12)')+'</div>';
+    $('main').innerHTML=hud+`<div class="card hero">${scene(S.tab==='admin'?'people':S.tab)}</div>`+view();
+  }
+  $('log').innerHTML=S.log.map(l=>`<p class="log-line ${l.c}">${esc(l.t)}</p>`).join('')||'<p class="mu">Nothing yet.</p>';
+}
 async function loadP(){if(!supabase||!CLOUD_READY){C=[];DB_STATUS='Cloud unavailable';render();return}try{const field=SK==='money'?'net_worth':SK==='win'?'fight_wins':'level';const {data,error}=await supabase.from('leaderboard').select('username,display_name,level,net_worth,fight_wins,color,hat,motto').order(field,{ascending:false}).limit(100);if(error)throw error;C=(data||[]).map(p=>({name:p.display_name||p.username,lvl:p.level||1,money:0,bank:0,net_worth:Number(p.net_worth)||0,col:p.color||COL[0],hat:p.hat||0,motto:p.motto||'',c:{win:p.fight_wins||0},reg:1,username:p.username}));render()}catch(e){console.error('Leaderboard load failed',e);DB_STATUS='Leaderboard unavailable'}}
 setInterval(()=>{S.energy=Math.min(maxL(),S.energy+2);S.nerve=Math.min(20+S.lvl,S.nerve+1);S.happy=Math.min(100,S.happy+2);if(!busy())S.life=Math.min(maxL(),S.life+3);save();render()},10000);
 setInterval(()=>{const i=Math.floor(S.bank*.005);if(i>0)S.bank+=i},30000);setInterval(()=>{if(G==='ok')render()},1000);
 render();
-(async function initCloud(){try{CLOUD_READY=await window.__loadSupabase();if(CLOUD_READY&&window.supabase){supabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);const {data,error}=await supabase.auth.getSession();if(error)throw error;if(data.session?.user)await loadAccount(data.session.user);else{DB_STATUS='Cloud ready — sign in';render()}}else{DB_STATUS='Offline mode — cloud unavailable';render()}}catch(e){DB_STATUS='Database unavailable';render();console.error('Cloud init failed',e)}})();
+(async function initCloud(){
+  try{
+    CLOUD_READY=await window.__loadSupabase();
+    if(CLOUD_READY&&window.supabase){
+      supabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
+      const {data,error}=await supabase.auth.getSession();
+      if(error)throw error;
+      if(data.session?.user){
+        await loadAccount(data.session.user);
+      }else{
+        G='signin';
+        DB_STATUS='Cloud ready — sign in';
+        render();
+      }
+    }else{
+      G='signin';
+      DB_STATUS='Offline mode — cloud unavailable';
+      render();
+    }
+  }catch(e){
+    G='signin';
+    DB_STATUS='Database unavailable';
+    render();
+    console.error('Cloud init failed',e);
+  }
+})();
 </script></body></html>
